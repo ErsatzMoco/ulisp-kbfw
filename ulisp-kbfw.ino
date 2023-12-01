@@ -6719,10 +6719,24 @@ void testescape () {
 #if defined serialmonitor
   if (Serial.available() && Serial.read() == '~') error2(PSTR("escape!"));
 #endif
-  if (digitalRead(0) == LOW) {
-    pinMode(0, INPUT_PULLUP); 
-    if (digitalRead(0) == LOW) error2(PSTR("escape!")); // Push Trackball
-  }
+  //local escape using KBFW joystick press
+  //replace with much faster version below if your device is equipped with an extra button
+  //(connected directly to a digital input of your Feather board)
+  Wire.requestFrom(0x1F, 1);
+      if (Wire.available()) {
+        const BBQ10Keyboard::KeyEvent key_e = keyboard.keyEvent();
+        char temp = key_e.key;
+        if (key_e.state == 3) {
+          if (temp == 2) {
+            error2(PSTR("escape!"));
+          }
+        }
+      }
+  //faster version - insert correct pin number and replace section above
+  // if (digitalRead(0) == LOW) {
+  //   pinMode(0, INPUT_PULLUP); 
+  //   if (digitalRead(0) == LOW) error2(PSTR("escape!"));
+  // }
 }
 
 bool keywordp (object *obj) {
@@ -7188,7 +7202,6 @@ int gserial () {
     } else {
       Wire.requestFrom(0x1F, 1);
       if (Wire.available()) {
-        //char temp = Wire.read();
         const BBQ10Keyboard::KeyEvent key_e = keyboard.keyEvent();
         char temp = key_e.key;
         if (key_e.state == 3) {
@@ -7212,7 +7225,6 @@ int gserial () {
   while (!KybdAvailable) {
     Wire.requestFrom(0x1F, 1);
     if (Wire.available()) {
-    //char temp = Wire.read();
     const BBQ10Keyboard::KeyEvent key_e = keyboard.keyEvent();
     if (key_e.state == 3) {
       char temp = key_e.key;
