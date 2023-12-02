@@ -7245,7 +7245,6 @@ int gserial () {
   while (!KybdAvailable) {
     Wire.requestFrom(0x1F, 1);
     if (Wire.available()) {
-    //char temp = Wire.read();
     const BBQ10Keyboard::KeyEvent key_e = keyboard.keyEvent();
     if (key_e.state == 3) {
       char temp = key_e.key;
