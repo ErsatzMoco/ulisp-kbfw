@@ -186,13 +186,27 @@ const char LispLibrary[] PROGMEM = "";
   #define STACKDIFF 320
   #define CPU_NRF51822
 
-#elif defined(ARDUINO_NRF52840_ITSYBITSY) || defined(ARDUINO_Seeed_XIAO_nRF52840) || defined(ARDUINO_Seeed_XIAO_nRF52840_Sense) || defined(ARDUINO_NRF52840_CIRCUITPLAY)
+#elif defined(ARDUINO_NRF52840_ITSYBITSY) || defined(ARDUINO_Seeed_XIAO_nRF52840) || defined(ARDUINO_Seeed_XIAO_nRF52840_Sense) || defined(ARDUINO_NRF52840_CIRCUITPLAY) || defined(ARDUINO_NRF52840_FEATHER)
   #define WORKSPACESIZE (21120-SDSIZE)    /* Objects (8*bytes) */
   #define DATAFLASH
   #define FLASHSIZE 2048000               /* 2 MBytes */
   #define CODESIZE 256                    /* Bytes */
   #define STACKDIFF 8
   #define CPU_NRF52840
+#if defined(kbfw)
+    const int COLOR_WHITE = 0xffff, COLOR_BLACK = 0, COLOR_GREEN = 0x07e0;
+    #define PIN_SD_CS 5
+    #define PIN_TOUCH_CS 6
+    #define PIN_TFT_CS 9
+    #define PIN_TFT_DC 10
+    #define PIN_TFT_MOSI 25
+    #define PIN_TFT_SCLK 26
+    #include <BBQ10Keyboard.h>
+    BBQ10Keyboard keyboard;
+    #include <Adafruit_GFX.h>
+    #include <Adafruit_ILI9341.h>
+    Adafruit_ILI9341 tft = Adafruit_ILI9341(PIN_TFT_CS, PIN_TFT_DC, PIN_TFT_MOSI, PIN_TFT_SCLK);
+  #endif
 
 #elif defined(ARDUINO_NRF52840_CLUE)
   #define WORKSPACESIZE (21120-SDSIZE)    /* Objects (8*bytes) */
@@ -240,13 +254,19 @@ const char LispLibrary[] PROGMEM = "";
   #define CODESIZE 256                    /* Bytes */
   #define STACKDIFF 320
   #define CPU_RP2040
-  #if defined(gfxsupport)
-  const int COLOR_WHITE = 0xffff, COLOR_BLACK = 0;
-  #include <Adafruit_GFX.h>    // Core graphics library
-  #include <Adafruit_ST7789.h> // Hardware-specific library for ST7789
-  Adafruit_ST7789 tft = Adafruit_ST7789(5, 1, 3, 2, 0); // TTGO RP2040 TFT
-  #define TFT_BACKLIGHT 4
-  #define TFT_I2C_POWER 22
+  #if defined(kbfw)
+    const int COLOR_WHITE = 0xffff, COLOR_BLACK = 0, COLOR_GREEN = 0x07e0;
+    #define PIN_SD_CS 5
+    #define PIN_TOUCH_CS 6
+    #define PIN_TFT_CS 9
+    #define PIN_TFT_DC 10
+    #define PIN_TFT_MOSI 19
+    #define PIN_TFT_SCLK 18
+    #include <BBQ10Keyboard.h>
+    BBQ10Keyboard keyboard;
+    #include <Adafruit_GFX.h>
+    #include <Adafruit_ILI9341.h>
+    Adafruit_ILI9341 tft = Adafruit_ILI9341(PIN_TFT_CS, PIN_TFT_DC, PIN_TFT_MOSI, PIN_TFT_SCLK);
   #endif
 
 #elif defined(ARDUINO_RASPBERRY_PI_PICO_W)
@@ -6719,10 +6739,24 @@ void testescape () {
 #if defined serialmonitor
   if (Serial.available() && Serial.read() == '~') error2(PSTR("escape!"));
 #endif
-  if (digitalRead(0) == LOW) {
-    pinMode(0, INPUT_PULLUP); 
-    if (digitalRead(0) == LOW) error2(PSTR("escape!")); // Push Trackball
-  }
+  //local escape using KBFW joystick press
+  //replace with much faster version below if your device is equipped with an extra button
+  //(connected directly to a digital input of your Feather board)
+  Wire.requestFrom(0x1F, 1);
+      if (Wire.available()) {
+        const BBQ10Keyboard::KeyEvent key_e = keyboard.keyEvent();
+        char temp = key_e.key;
+        if (key_e.state == 3) {
+          if (temp == 2) {
+            error2(PSTR("escape!"));
+          }
+        }
+      }
+  //faster version - insert correct pin number and replace section above
+  // if (digitalRead(0) == LOW) {
+  //   pinMode(0, INPUT_PULLUP); 
+  //   if (digitalRead(0) == LOW) error2(PSTR("escape!"));
+  // }
 }
 
 bool keywordp (object *obj) {
@@ -7188,7 +7222,6 @@ int gserial () {
     } else {
       Wire.requestFrom(0x1F, 1);
       if (Wire.available()) {
-        //char temp = Wire.read();
         const BBQ10Keyboard::KeyEvent key_e = keyboard.keyEvent();
         char temp = key_e.key;
         if (key_e.state == 3) {
@@ -7574,7 +7607,7 @@ void initgfx () {
   tft.init();
   tft.setRotation(3);
   tft.fillScreen(TFT_BLACK);
-  #elif (defined(ADAFRUIT_FEATHER_M0) || defined(ARDUINO_FEATHER_M4)) && defined(kbfw)
+  #elif (defined(ADAFRUIT_FEATHER_M0) || defined(ARDUINO_FEATHER_M4) || defined(ARDUINO_NRF52840_FEATHER) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040)) && defined(kbfw)
     #if defined(rfm69)
       digitalWrite(PIN_RADIO_CS, HIGH);
     #endif
