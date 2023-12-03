@@ -14,7 +14,7 @@ const char LispLibrary[] PROGMEM = "";
 #define printfreespace
 #define serialmonitor
 // #define printgcs
-// #define sdcardsupport
+// #define sdcardsupport //leave this line in comments for KeyboardFeatherWing operation - support set automatically according to appropriate board
 #define gfxsupport  //uncomment this line for KeyboardFeatherWing operation
 // #define lisplibrary
 #define assemblerlist
@@ -32,13 +32,6 @@ const char LispLibrary[] PROGMEM = "";
 #include <Wire.h>
 #include <limits.h>
 
-
-#if defined(sdcardsupport)
-#include <SD.h>
-#define SDSIZE 91
-#else
-#define SDSIZE 0
-#endif
 
 // Platform specific settings
 
@@ -69,7 +62,6 @@ const char LispLibrary[] PROGMEM = "";
   #define CPUFLASH
   #define FLASHSIZE 32768                 /* Bytes */
   #define CODESIZE 128                    /* Bytes */
-  #define SDCARD_SS_PIN 4
   #define STACKDIFF 320
   #define CPU_ATSAMD21
   #if defined(rfm69)
@@ -77,7 +69,8 @@ const char LispLibrary[] PROGMEM = "";
   #endif    
   #if defined(kbfw)
     const int COLOR_WHITE = 0xffff, COLOR_BLACK = 0, COLOR_GREEN = 0x07e0;
-    #define PIN_SD_CS 5
+    #define sdcardsupport
+    #define SDCARD_SS_PIN 5
     #define PIN_TOUCH_CS 6
     #define PIN_TFT_CS 9
     #define PIN_TFT_DC 10
@@ -88,6 +81,8 @@ const char LispLibrary[] PROGMEM = "";
     #include <Adafruit_GFX.h>
     #include <Adafruit_ILI9341.h>
     Adafruit_ILI9341 tft = Adafruit_ILI9341(PIN_TFT_CS, PIN_TFT_DC, PIN_TFT_MOSI, PIN_TFT_SCLK);
+  #else
+    #define SDCARD_SS_PIN 4
   #endif
 
 #elif defined(ARDUINO_METRO_M4) || defined(ARDUINO_ITSYBITSY_M4) || defined(ARDUINO_FEATHER_M4)
@@ -95,12 +90,12 @@ const char LispLibrary[] PROGMEM = "";
   #define DATAFLASH
   #define FLASHSIZE 2048000               /* 2 MBytes */
   #define CODESIZE 256                    /* Bytes */
-  #define SDCARD_SS_PIN 10
   #define STACKDIFF 400
   #define CPU_ATSAMD51
   #if defined(kbfw)
     const int COLOR_WHITE = 0xffff, COLOR_BLACK = 0, COLOR_GREEN = 0x07e0;
-    #define PIN_SD_CS 5
+    #define sdcardsupport
+    #define SDCARD_SS_PIN 5
     #define PIN_TOUCH_CS 6
     #define PIN_TFT_CS 9
     #define PIN_TFT_DC 10
@@ -111,6 +106,8 @@ const char LispLibrary[] PROGMEM = "";
     #include <Adafruit_GFX.h>
     #include <Adafruit_ILI9341.h>
     Adafruit_ILI9341 tft = Adafruit_ILI9341(PIN_TFT_CS, PIN_TFT_DC, PIN_TFT_MOSI, PIN_TFT_SCLK);
+  #else
+    #define SDCARD_SS_PIN 10
   #endif
 
 #elif defined(ARDUINO_PYBADGE_M4) || defined(ARDUINO_PYGAMER_M4)
@@ -195,7 +192,7 @@ const char LispLibrary[] PROGMEM = "";
   #define CPU_NRF52840
 #if defined(kbfw)
     const int COLOR_WHITE = 0xffff, COLOR_BLACK = 0, COLOR_GREEN = 0x07e0;
-    #define PIN_SD_CS 5
+    #define SDCARD_SS_PIN 5
     #define PIN_TOUCH_CS 6
     #define PIN_TFT_CS 9
     #define PIN_TFT_DC 10
@@ -256,7 +253,7 @@ const char LispLibrary[] PROGMEM = "";
   #define CPU_RP2040
   #if defined(kbfw)
     const int COLOR_WHITE = 0xffff, COLOR_BLACK = 0, COLOR_GREEN = 0x07e0;
-    #define PIN_SD_CS 5
+    #define SDCARD_SS_PIN 5
     #define PIN_TOUCH_CS 6
     #define PIN_TFT_CS 9
     #define PIN_TFT_DC 10
@@ -305,6 +302,13 @@ const char LispLibrary[] PROGMEM = "";
 
 #else
 #error "Board not supported!"
+#endif
+
+#if defined(sdcardsupport)
+#include <SD.h>
+#define SDSIZE 91
+#else
+#define SDSIZE 0
 #endif
 
 // C Macros
@@ -1024,6 +1028,10 @@ int saveimage (object *arg) {
     SDWrite32(file, (uintptr_t)cdr(obj));
   }
   file.close();
+  #if defined(kbfw)
+    tft.begin();
+    tft.setRotation(1);
+  #endif
   return imagesize;
 #elif defined(LITTLEFS)
   unsigned int imagesize = compactimage(&arg);
@@ -1105,6 +1113,10 @@ int loadimage (object *arg) {
     cdr(obj) = (object *)SDRead32(file);
   }
   file.close();
+  #if defined(kbfw)
+    tft.begin();
+    tft.setRotation(1);
+  #endif
   gc(NULL, NULL);
   return imagesize;
 #elif defined(LITTLEFS)
@@ -1170,6 +1182,10 @@ void autorunimage () {
   if (!file) error2(PSTR("problem autorunning from SD card"));
   object *autorun = (object *)SDRead32(file);
   file.close();
+  #if defined(kbfw)
+    tft.begin();
+    tft.setRotation(1);
+  #endif
   if (autorun != NULL) {
     loadimage(NULL);
     apply(autorun, NULL, NULL);
@@ -3218,6 +3234,10 @@ object *sp_withsdcard (object *args, object *env) {
   object *forms = cdr(args);
   object *result = eval(tf_progn(forms,env), env);
   if (mode >= 1) SDpfile.close(); else SDgfile.close();
+  #if defined(kbfw)
+    tft.begin();
+    tft.setRotation(1);
+  #endif
   return result;
   #else
   (void) args, (void) env;
@@ -7610,7 +7630,7 @@ void initgfx () {
     #if defined(rfm69)
       digitalWrite(PIN_RADIO_CS, HIGH);
     #endif
-    digitalWrite(PIN_SD_CS, HIGH);
+    digitalWrite(SDCARD_SS_PIN, HIGH);
     digitalWrite(PIN_TOUCH_CS, HIGH);
     digitalWrite(PIN_TFT_CS, LOW);
     tft.begin();
