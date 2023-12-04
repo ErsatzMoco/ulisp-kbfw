@@ -22,7 +22,7 @@ const char LispLibrary[] PROGMEM = "";
 // #define vt100
 #define extensions
 #define kbfw  //uncomment this line for KeyboardFeatherWing operation
-// #define rfm69 //uncomment this line for Feather M0 Radio with RFM69 module
+// #define rfm69 //UNCOMMENT THIS LINE FOR FEATHER M0 RADIO with RFM69 module
 
 // Includes
 
@@ -71,7 +71,6 @@ const char LispLibrary[] PROGMEM = "";
     const int COLOR_WHITE = 0xffff, COLOR_BLACK = 0, COLOR_GREEN = 0x07e0;
     #define sdcardsupport
     #define SDCARD_SS_PIN 5
-    #define PIN_TOUCH_CS 6
     #define PIN_TFT_CS 9
     #define PIN_TFT_DC 10
     #define PIN_TFT_MOSI 23
@@ -96,7 +95,6 @@ const char LispLibrary[] PROGMEM = "";
     const int COLOR_WHITE = 0xffff, COLOR_BLACK = 0, COLOR_GREEN = 0x07e0;
     #define sdcardsupport
     #define SDCARD_SS_PIN 5
-    #define PIN_TOUCH_CS 6
     #define PIN_TFT_CS 9
     #define PIN_TFT_DC 10
     #define PIN_TFT_MOSI 24
@@ -193,7 +191,6 @@ const char LispLibrary[] PROGMEM = "";
 #if defined(kbfw)
     const int COLOR_WHITE = 0xffff, COLOR_BLACK = 0, COLOR_GREEN = 0x07e0;
     #define SDCARD_SS_PIN 5
-    #define PIN_TOUCH_CS 6
     #define PIN_TFT_CS 9
     #define PIN_TFT_DC 10
     #define PIN_TFT_MOSI 25
@@ -254,7 +251,6 @@ const char LispLibrary[] PROGMEM = "";
   #if defined(kbfw)
     const int COLOR_WHITE = 0xffff, COLOR_BLACK = 0, COLOR_GREEN = 0x07e0;
     #define SDCARD_SS_PIN 5
-    #define PIN_TOUCH_CS 6
     #define PIN_TFT_CS 9
     #define PIN_TFT_DC 10
     #define PIN_TFT_MOSI 19
@@ -7253,6 +7249,10 @@ int gserial () {
             if (temp == 6) toggleBacklight();
             if (temp == 17) temp = '<';   // translate inner special keys to angle brackets
             if (temp == 7) temp = '>';
+            if (temp == 3) temp = '(';    // translate joystick left/right to round brackets for convenience
+            if (temp == 4) temp = ')';
+            if (temp == 1) temp = '[';    // translate joystick up/down to round brackets
+            if (temp == 2) temp = ']';
             ProcessKey(temp);
          }
         }
@@ -7280,6 +7280,10 @@ int gserial () {
           if (temp == 6) toggleBacklight();
           if (temp == 17) temp = '<';   // translate inner special keys to angle brackets
           if (temp == 7) temp = '>';
+          if (temp == 3) temp = '(';    // translate joystick left/right to round brackets for convenience
+          if (temp == 4) temp = ')';
+          if (temp == 1) temp = '[';    // translate joystick up/down to round brackets
+          if (temp == 2) temp = ']';
           ProcessKey(temp);
         }
       }
@@ -7652,8 +7656,6 @@ void initgfx () {
     #if defined(rfm69)
       digitalWrite(PIN_RADIO_CS, HIGH);
     #endif
-    digitalWrite(SDCARD_SS_PIN, HIGH);
-    digitalWrite(PIN_TOUCH_CS, HIGH);
     digitalWrite(PIN_TFT_CS, LOW);
     tft.begin();
     tft.setRotation(1);
