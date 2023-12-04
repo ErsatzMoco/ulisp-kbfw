@@ -20,7 +20,7 @@ const char LispLibrary[] PROGMEM = "";
 #define assemblerlist
 // #define lineeditor
 // #define vt100
-// #define extensions
+#define extensions
 #define kbfw  //uncomment this line for KeyboardFeatherWing operation
 // #define rfm69 //uncomment this line for Feather M0 Radio with RFM69 module
 
@@ -7226,6 +7226,7 @@ const int KybdBufSize = Columns*Lines;
 char KybdBuf[KybdBufSize], ScrollBuf[Columns][Lines];
 volatile uint8_t KybdAvailable = 0;
 uint8_t Scroll = 0;
+volatile uint8_t Backlight = 1;
 
 int gserial () {
   if (LastChar) {
@@ -7246,8 +7247,12 @@ int gserial () {
         char temp = key_e.key;
         if (key_e.state == 3) {
           if ((temp != 0) && (temp !=255)) {
-            if (temp == '@') temp = '~';
+            if (temp == '$') temp = '=';
             if (temp == '_') temp = '\\';
+            if (temp == 18) temp = 12;    // translate outer right special key to clear screen
+            if (temp == 6) toggleBacklight();
+            if (temp == 17) temp = '<';   // translate inner special keys to angle brackets
+            if (temp == 7) temp = '>';
             ProcessKey(temp);
          }
         }
@@ -7269,8 +7274,12 @@ int gserial () {
     if (key_e.state == 3) {
       char temp = key_e.key;
       if ((temp != 0) && (temp !=255)) {
-          if (temp == '@') temp = '~';
+          if (temp == '$') temp = '=';
           if (temp == '_') temp = '\\';
+          if (temp == 18) temp = 12;    // translate outer right special key to clear screen
+          if (temp == 6) toggleBacklight();
+          if (temp == 17) temp = '<';   // translate inner special keys to angle brackets
+          if (temp == 7) temp = '>';
           ProcessKey(temp);
         }
       }
@@ -7278,7 +7287,7 @@ int gserial () {
   }
   if (ReadPtr != WritePtr) {
     char temp = KybdBuf[ReadPtr++];
-    return temp;
+      return temp;
   }
   KybdAvailable = 0;
   WritePtr = 0;
@@ -7587,7 +7596,7 @@ void ProcessKey (char c) {
       if (WritePtr) c = KybdBuf[WritePtr-1];
     }
   } else if (WritePtr < KybdBufSize) {
-    KybdBuf[WritePtr++] = c;
+    if ((c != 12) && (c != 6)) KybdBuf[WritePtr++] = c; // get rid of control characters Clear Screen, Backlight
     Display(c);
   }
   // Do new parenthesis highlight
@@ -7604,6 +7613,19 @@ void ProcessKey (char c) {
     Highlight(parenthesis, 1);
   }
   return;
+}
+
+void toggleBacklight () {
+  if (!Backlight) {
+    keyboard.setBacklight(1);
+    keyboard.setBacklight2(1);
+    Backlight = 1;
+  }
+  else {
+    keyboard.setBacklight(0);
+    keyboard.setBacklight2(0);
+    Backlight = 0;
+  }
 }
 
 
