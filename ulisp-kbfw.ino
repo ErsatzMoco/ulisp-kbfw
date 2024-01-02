@@ -22,7 +22,8 @@ const char LispLibrary[] PROGMEM = "";
 // #define vt100
 #define extensions
 #define kbfw  //uncomment this line for KeyboardFeatherWing operation
-// #define rfm69 //UNCOMMENT THIS LINE FOR FEATHER M0 RADIO with RFM69 module
+#define rfm69 //uncomment this line for FEATHER M0 RADIO with RFM69 module
+#define autoforcetft  //uncomment this line for INTERNAL REPL USE
 
 // Includes
 
@@ -6965,8 +6966,8 @@ void pserial (char c) {
   LastPrint = c;
   if (!tstflag(NOECHO)) Display(c);         // Don't display on KBFW screen when paste in listing
   #if defined (serialmonitor)
-  if (c == '\n') Serial.write('\r');
-  Serial.write(c);
+    if (c == '\n') Serial.write('\r');
+    Serial.write(c);
   #endif
 }
 
@@ -7185,6 +7186,7 @@ void prin1object (object *form, pfun_t pfun) {
   Flags = temp;
 }
 
+
 // Read functions
 
 int glibrary () {
@@ -7274,6 +7276,7 @@ int gserial () {
     if (key_e.state == 3) {
       char temp = key_e.key;
       if ((temp != 0) && (temp !=255)) {
+
           if (temp == '$') temp = '=';
           if (temp == '_') temp = '\\';
           if (temp == 18) temp = 12;    // translate outer right special key to clear screen
@@ -7562,6 +7565,7 @@ void Display (char c) {
   PlotChar(Cursor, line, column);
  #endif
 }
+
 
 // Keyboard **********************************************************************************
 

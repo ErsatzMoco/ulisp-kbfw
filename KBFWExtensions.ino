@@ -1,5 +1,5 @@
 /*
-  Keyboard FeatherWing uLisp Extension - Version 0.1 - 4th Dec 2023
+  Keyboard FeatherWing uLisp Extension - Version 0.2 - 1st Jan 2024
 
   Based on:
   NeoPixel uLisp Extension - Version 1a - 22nd May 2023
@@ -8,6 +8,7 @@
 
 #include <Adafruit_NeoPixel.h>
 #include <Adafruit_STMPE610.h>
+#include <RFM69.h>
 
 #if defined(ARDUINO_PYBADGE_M4) || defined(ARDUINO_PYGAMER_M4)
   #define NEOPIXEL_NUM 5
@@ -30,12 +31,29 @@
   #define TS_MINY 130
   #define TS_MAXX 3800
   #define TS_MAXY 4000
+
+  #if defined(rfm69)
+    #define FREQUENCY RF69_868MHZ
+    #define ENCRYPTKEY "My@@@Encrypt@@@@" //exactly the same 16 characters/bytes on all nodes!
+    #define IS_RFM69HCW true // set to 'true' only if you are using an RFM69HCW module like on Feather M0 Radio
+
+    // for Feather M0 Radio
+    #define RFM69_CS 8
+    #define RFM69_IRQ 3
+    #define RFM69_IRQN 3 // Pin 3 is IRQ 3!
+    #define RFM69_RST 4
+  #endif
+
 #endif
 
 Adafruit_NeoPixel pixels(NEOPIXEL_NUM, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 
 #if (defined(ADAFRUIT_FEATHER_M0) || defined(ARDUINO_FEATHER_M4)) && defined(kbfw)
   Adafruit_STMPE610 touch(PIN_STMPE_CS);
+#endif
+
+#if defined(rfm69)
+  RFM69 radio(RFM69_CS, RFM69_IRQ, IS_RFM69HCW, RFM69_IRQN);
 #endif
 
 /*
@@ -173,14 +191,32 @@ object *fn_PixelsRainbow (object *args, object *env) {
 
 #if (defined(ADAFRUIT_FEATHER_M0) || defined(ARDUINO_FEATHER_M4)) && defined(kbfw)
 /*
+  (force-tft)
+  Call to regain TFT control and responsiveness after SPI use with other modules.
+*/
+object *fn_ForceTFT (object *args, object *env) {
+  (void) args, (void) env;
+  forceTFT();
+  return tee;
+}
+
+/* put into separate function for easier internal call */
+void forceTFT(void) {
+  tft.begin();
+  tft.setRotation(1);
+}
+
+
+/*
   (touch-begin)
   Initialize touch screen controller.
 */
 object *fn_TouchBegin (object *args, object *env) {
   (void) args, (void) env;
   touch.begin();
-  tft.begin();
-  tft.setRotation(1);
+  #if defined autoforcetft
+    forceTFT();
+  #endif
   return nil;
 }
 
@@ -213,8 +249,9 @@ object *fn_TouchGetPoint (object *args, object *env) {
   object *px = number(p.x);
   object *py = number(p.y);
 
-  tft.begin();
-  tft.setRotation(1);
+  #if defined autoforcetft
+    forceTFT();
+  #endif
 
   return cons(px, cons(py, NULL));
 }
@@ -239,8 +276,9 @@ object *fn_TouchWaitForTouch (object *args, object *env) {
   object *px = number(p.x);
   object *py = number(p.y);
 
-  tft.begin();
-  tft.setRotation(1);
+  #if defined autoforcetft
+    forceTFT();
+  #endif
 
   return cons(px, cons(py, NULL));
 }
@@ -254,8 +292,11 @@ object *fn_TouchTouched (object *args, object *env) {
   (void) args, (void) env;
   prepareTouch();
   boolean touched = touch.touched();
-  tft.begin();
-  tft.setRotation(1);
+
+  #if defined autoforcetft
+    forceTFT();
+  #endif
+
   if (touched) {
     return tee;
   }
@@ -274,8 +315,11 @@ object *fn_TouchBufferEmpty (object *args, object *env) {
   (void) args, (void) env;
   prepareTouch();
   boolean empty = touch.bufferEmpty();
-  tft.begin();
-  tft.setRotation(1);
+
+  #if defined autoforcetft
+    forceTFT();
+  #endif
+
   if (empty) {
     return tee;
   }
@@ -293,9 +337,161 @@ object *fn_TouchBufferSize (object *args, object *env) {
   (void) args, (void) env;
   prepareTouch();
   uint8_t bsize = touch.bufferSize();
-  tft.begin();
-  tft.setRotation(1);
+
+  #if defined autoforcetft
+    forceTFT();
+  #endif
+
   return number(bsize);
+}
+#endif
+
+
+#if defined(rfm69)
+/*
+  Helper function:
+  Prepare SDI for radio use. Not accessible via uLisp.
+  (Not sure why this process is necessary - RFM69 driver probably changes SPI settings)
+*/
+void radioON () {
+  SPI.begin();
+  pinMode(PIN_RADIO_CS, OUTPUT);
+  digitalWrite(PIN_RADIO_CS, LOW);
+}
+
+/*
+  Helper function:
+  Prepare SDI for other use. Not accessible via uLisp.
+  (Not sure why this process is necessary - RFM69 driver probably changes SPI settings)
+*/
+void radioOFF () {
+  pinMode(PIN_RADIO_CS, OUTPUT);
+  digitalWrite(PIN_RADIO_CS, HIGH);
+  SPI.begin();
+  static SPISettings mySPISettings = SPISettings(1000000, MSBFIRST, SPI_MODE0);
+
+  #if defined autoforcetft
+    forceTFT();
+  #endif
+}
+
+/*
+  (rfm69-begin)
+  Start RFM69 radio module with pin and IRQ number assignments and reset it.
+*/
+object *fn_RFM69Begin (object *args, object *env) {
+  (void) env;
+  
+  int nodeid = checkinteger(first(args));
+  int netid = checkinteger(second(args));
+
+  // Hard Reset the RFM module
+  pinMode(RFM69_RST, OUTPUT);
+  digitalWrite(RFM69_RST, LOW);
+
+  // manual reset
+  digitalWrite(RFM69_RST, HIGH);
+  delay(100);
+  digitalWrite(RFM69_RST, LOW);
+  delay(100);
+
+  String msg;
+  pfun_t pf = pserial;
+
+  while(!radio.initialize(FREQUENCY, nodeid, netid))
+  {
+      pfstring("try to init...", pf);
+      delay(100);
+  }
+
+  if (IS_RFM69HCW)
+  {
+      radio.setHighPower(); // Only for RFM69HCW & HW!
+  }
+
+  radio.setPowerLevel(31); // power output ranges from 0 (5dBm) to 31 (20dBm)
+  radio.encrypt(ENCRYPTKEY);
+  
+  radioOFF();
+  
+  if (IS_RFM69HCW)
+  {
+      pfstring("RFM69 HCW initialized!\n", pf);
+  }
+  else
+  {
+      pfstring("RFM69 initialized!\n", pf);
+  }
+  pint(FREQUENCY, pf);
+  pserial(' ');
+  pint(nodeid, pf);
+  pserial(' ');
+  pint(netid, pf);
+  pserial('\n');
+
+  return nil;
+}
+
+
+/*
+  (rfm69-send)
+  Send string data package to specified receiver ID optionally requesting hardware acknowledge.
+*/
+object *fn_RFM69Send (object *args, object *env) {
+  (void) env;
+  
+  if (args != NULL) {
+
+    char* packet = new char[46];
+    int receiver;
+    bool ack = false;
+
+    receiver = checkinteger(first(args));
+    args = cdr(args);
+    cstring(first(args), packet, 45);
+    args = cdr(args);
+    if (args != NULL) {
+      ack = (first(args) == nil) ? false : true;
+      }
+
+    radioON();
+    radio.send(receiver, packet, strlen(packet)+1, ack);
+    radioOFF();
+    pstring(packet, (pfun_t)pserial);
+    return tee;    
+  }
+  radioOFF();
+  return nil;
+}
+
+/*
+  (rfm69-receive)
+  Retrieve string data package if something has been received.
+*/
+object *fn_RFM69Receive (object *args, object *env) {
+  (void) env; (void) args;
+
+  radioON();
+  if (radio.receiveDone())
+  {
+        radioOFF();
+        return lispstring((char*)radio.DATA);
+  }
+  radioOFF();
+  return nil;
+}
+
+/*
+  (rfm69-get-rssi)
+  Obtain signal strength reported at last transmit.
+*/
+object *fn_RFM69GetRSSI (object *args, object *env) {
+  (void) env; (void) args;
+
+  object* rssi = number(radio.RSSI);
+
+  radioOFF();
+  return rssi;
 }
 #endif
 
@@ -311,12 +507,20 @@ const char stringPixelsShow[] PROGMEM = "pixels-show";
 const char stringPixelsRainbow[] PROGMEM = "pixels-rainbow";
 
 #if (defined(ADAFRUIT_FEATHER_M0) || defined(ARDUINO_FEATHER_M4)) && defined(kbfw)
+const char stringForceTFT[] PROGMEM = "force-tft";
 const char stringTouchBegin[] PROGMEM = "touch-begin";
 const char stringTouchGetPoint[] PROGMEM = "touch-get-point";
 const char stringTouchWaitForTouch[] PROGMEM = "touch-wait-for-touch";
 const char stringTouchTouched[] PROGMEM = "touch-touched";
 const char stringTouchBufferEmpty[] PROGMEM = "touch-buffer-empty";
 const char stringTouchBufferSize[] PROGMEM = "touch-buffer-size";
+#endif
+
+#if defined(rfm69)
+const char stringRFM69Begin[] PROGMEM = "rfm69-begin";
+const char stringRFM69Send[] PROGMEM = "rfm69-send";
+const char stringRFM69Receive[] PROGMEM = "rfm69-receive";
+const char stringRFM69GetRSSI[] PROGMEM = "rfm69-get-rssi";
 #endif
 
 
@@ -350,6 +554,8 @@ const char docPixelsRainbow[] PROGMEM = "(pixels-rainbow [first-hue] [cycles] [s
 "gammify, default true, applies gamma correction to colours.";
 
 #if (defined(ADAFRUIT_FEATHER_M0) || defined(ARDUINO_FEATHER_M4)) && defined(kbfw)
+const char docForceTFT[] PROGMEM = "(force-tft)\n"
+"Call to regain TFT control and responsiveness after SPI use with other modules.";
 const char docTouchBegin[] PROGMEM = "(touch-begin)\n"
 "Initialize touch screen controller.";
 const char docTouchGetPoint[] PROGMEM = "(touch-get-point)\n"
@@ -365,6 +571,17 @@ const char docTouchBufferSize[] PROGMEM = "(touch-buffer-size)\n"
 "Returns the size of the touch screen's FIFO buffer.";
 #endif
 
+#if defined(rfm69)
+const char docRFM69Begin[] PROGMEM = "(rfm69-begin nodeid netid)\n"
+"Reset RFM69 module and initialize communication with frequency band, node id and net id.";
+const char docRFM69Send[] PROGMEM = "(rfm69-send receiver pckgstr [ack])\n"
+"Send string data package to specified receiver ID optionally requesting hardware acknowledge.";
+const char docRFM69Receive[] PROGMEM = "(rfm69-receive)\n"
+"Retrieve string data package if something has been received.";
+const char docRFM69GetRSSI[] PROGMEM = "(rfm69-get-rssi)\n"
+"Obtain signal strength reported at last transmit.";
+#endif
+
 // Symbol lookup table
 const tbl_entry_t lookup_table2[] PROGMEM = {
   { stringPixelsBegin, fn_PixelsBegin, 0200, docPixelsBegin },
@@ -377,12 +594,20 @@ const tbl_entry_t lookup_table2[] PROGMEM = {
   { stringPixelsRainbow, fn_PixelsRainbow, 0205, docPixelsRainbow },
 
 #if (defined(ADAFRUIT_FEATHER_M0) || defined(ARDUINO_FEATHER_M4)) && defined(kbfw)
+  { stringForceTFT, fn_ForceTFT, 0200, docForceTFT },
   { stringTouchBegin, fn_TouchBegin, 0200, docTouchBegin },
   { stringTouchGetPoint, fn_TouchGetPoint, 0200, docTouchGetPoint },
   { stringTouchWaitForTouch, fn_TouchWaitForTouch, 0200, docTouchWaitForTouch },
   { stringTouchTouched, fn_TouchTouched, 0200, docTouchTouched },
   { stringTouchBufferEmpty, fn_TouchBufferEmpty, 0200, docTouchBufferEmpty },
   { stringTouchBufferSize, fn_TouchBufferSize, 0200, docTouchBufferSize },
+#endif
+
+#if defined(rfm69)
+  { stringRFM69Begin, fn_RFM69Begin, 0222, docRFM69Begin },
+  { stringRFM69Send, fn_RFM69Send, 0223, docRFM69Send },
+  { stringRFM69Receive, fn_RFM69Receive, 0200, docRFM69Receive },
+  { stringRFM69GetRSSI, fn_RFM69GetRSSI, 0200, docRFM69GetRSSI },
 #endif
 };
 
