@@ -92,6 +92,9 @@ const char LispLibrary[] PROGMEM = "";
   #define CODESIZE 256                    /* Bytes */
   #define STACKDIFF 400
   #define CPU_ATSAMD51
+  #if defined(rfm69)
+    #define PIN_RADIO_CS 5  // for Feather M4 with external RFM69 module only
+  #endif 
   #if defined(kbfw)
     const int COLOR_WHITE = 0xffff, COLOR_BLACK = 0, COLOR_GREEN = 0x07e0;
     #define sdcardsupport
@@ -6759,6 +6762,7 @@ void testescape () {
   //local escape using KBFW joystick press
   //replace with much faster version below if your device is equipped with an extra button
   //(connected directly to a digital input of your Feather board)
+#if defined kbfw  
   Wire.requestFrom(0x1F, 1);
       if (Wire.available()) {
         const BBQ10Keyboard::KeyEvent key_e = keyboard.keyEvent();
@@ -6769,6 +6773,7 @@ void testescape () {
           }
         }
       }
+#endif
   //faster version - insert correct pin number and replace section above
   // if (digitalRead(0) == LOW) {
   //   pinMode(0, INPUT_PULLUP); 
@@ -7238,7 +7243,9 @@ int gserial () {
       char temp = Serial.read();
       if (temp != '\n' && !tstflag(NOECHO)) Serial.print(temp);
       return temp;
-    } else {
+    } 
+    #if defined kbfw
+    else {
       Wire.requestFrom(0x1F, 1);
       if (Wire.available()) {
         const BBQ10Keyboard::KeyEvent key_e = keyboard.keyEvent();
@@ -7260,6 +7267,7 @@ int gserial () {
         }
       }
     }
+    #endif
   }
   if (ReadPtr != WritePtr) {
     char temp = KybdBuf[ReadPtr++];
@@ -7268,7 +7276,7 @@ int gserial () {
   KybdAvailable = 0;
   WritePtr = 0;
   return '\n';
-  #else
+  #elif defined kbfw
   while (!KybdAvailable) {
     Wire.requestFrom(0x1F, 1);
     if (Wire.available()) {
@@ -7623,6 +7631,7 @@ void ProcessKey (char c) {
   return;
 }
 
+#if defined kbfw
 void toggleBacklight () {
   if (!Backlight) {
     keyboard.setBacklight(1);
@@ -7635,6 +7644,7 @@ void toggleBacklight () {
     Backlight = 0;
   }
 }
+#endif
 
 
 // Setup
@@ -7692,7 +7702,9 @@ void setup () {
   initsleep();
   initgfx();
   Wire.begin();
-  keyboard.begin();
+  #if defined kbfw
+    keyboard.begin();
+  #endif
   pfstring(PSTR("uLisp 4.5 "), pserial); pln(pserial);
 }
 

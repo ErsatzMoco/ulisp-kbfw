@@ -20,35 +20,49 @@
 #elif defined(ARDUINO_GEMMA_M0) // For NeoPixel Trinkey
   #define NEOPIXEL_NUM 4
   #define PIN_NEOPIXEL 9
-#elif (defined(ADAFRUIT_FEATHER_M0) || defined(ARDUINO_FEATHER_M4) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040)) && defined(kbfw)
+#elif defined(ARDUINO_FEATHER_M4)
   #define NEOPIXEL_NUM 1
-  #define PIN_NEOPIXEL 11
+  #define PIN_NEOPIXEL 8
 #endif
 
-#if (defined(ADAFRUIT_FEATHER_M0) || defined(ARDUINO_FEATHER_M4)) && defined(kbfw)
+//  #define NEOPIXEL_NUM 1      //uncomment these two lines when using external NeoPixels - fill in appropriate values
+//  #define PIN_NEOPIXEL 11
+
+
+#if defined(kbfw)
   #define PIN_STMPE_CS 6
   #define TS_MINX 150
   #define TS_MINY 130
   #define TS_MAXX 3800
   #define TS_MAXY 4000
-
-  #if defined(rfm69)
-    #define FREQUENCY RF69_868MHZ
-    #define ENCRYPTKEY "My@@@Encrypt@@@@" //exactly the same 16 characters/bytes on all nodes!
-    #define IS_RFM69HCW true // set to 'true' only if you are using an RFM69HCW module like on Feather M0 Radio
-
-    // for Feather M0 Radio
-    #define RFM69_CS 8
-    #define RFM69_IRQ 3
-    #define RFM69_IRQN 3 // Pin 3 is IRQ 3!
-    #define RFM69_RST 4
-  #endif
-
+  
+  #define NEOPIXEL_NUM 1
+  #define PIN_NEOPIXEL 11
 #endif
 
-Adafruit_NeoPixel pixels(NEOPIXEL_NUM, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
+#if defined(rfm69)
+  #define FREQUENCY RF69_868MHZ
+  #define ENCRYPTKEY "My@@@Encrypt@@@@" //exactly the same 16 characters/bytes on all nodes!
+  #define IS_RFM69HCW true // set to 'true' only if you are using an RFM69HCW module like on Feather M0 Radio
 
-#if (defined(ADAFRUIT_FEATHER_M0) || defined(ARDUINO_FEATHER_M4)) && defined(kbfw)
+  // for Feather M0 Radio
+  #define RFM69_CS 8
+  #define RFM69_IRQ 3
+  #define RFM69_IRQN 3 // Pin 3 is IRQ 3!
+  #define RFM69_RST 4
+
+  // for Feather M4 etc with external RFM69 module
+  // #define RFM69_CS 5
+  // #define RFM69_IRQ 9
+  // #define RFM69_IRQN 3 // Pin 9 is IRQ 3!
+  // #define RFM69_RST 6
+#endif
+
+#if defined NEOPIXEL_NUM
+Adafruit_NeoPixel pixels(NEOPIXEL_NUM, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
+#endif
+
+#if defined(kbfw)
   Adafruit_STMPE610 touch(PIN_STMPE_CS);
 #endif
 
@@ -56,6 +70,7 @@ Adafruit_NeoPixel pixels(NEOPIXEL_NUM, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
   RFM69 radio(RFM69_CS, RFM69_IRQ, IS_RFM69HCW, RFM69_IRQN);
 #endif
 
+#if defined NEOPIXEL_NUM
 /*
   (pixels-begin)
   Configures the NeoPixel pin for output.
@@ -188,8 +203,10 @@ object *fn_PixelsRainbow (object *args, object *env) {
   pixels.rainbow(firstHue, cycles, saturation, brightness, gammify);
   return nil;
 }
+#endif
 
-#if (defined(ADAFRUIT_FEATHER_M0) || defined(ARDUINO_FEATHER_M4)) && defined(kbfw)
+
+#if defined(kbfw)
 /*
   (force-tft)
   Call to regain TFT control and responsiveness after SPI use with other modules.
@@ -497,6 +514,7 @@ object *fn_RFM69GetRSSI (object *args, object *env) {
 
 
 // Symbol names
+#if defined NEOPIXEL_NUM
 const char stringPixelsBegin[] PROGMEM = "pixels-begin";
 const char stringPixelsClear[] PROGMEM = "pixels-clear";
 const char stringPixelsFill[] PROGMEM = "pixels-fill";
@@ -505,8 +523,9 @@ const char stringPixelsColor[] PROGMEM = "pixels-color";
 const char stringPixelsColorHSV[] PROGMEM = "pixels-color-hsv";
 const char stringPixelsShow[] PROGMEM = "pixels-show";
 const char stringPixelsRainbow[] PROGMEM = "pixels-rainbow";
+#endif
 
-#if (defined(ADAFRUIT_FEATHER_M0) || defined(ARDUINO_FEATHER_M4)) && defined(kbfw)
+#if defined(kbfw)
 const char stringForceTFT[] PROGMEM = "force-tft";
 const char stringTouchBegin[] PROGMEM = "touch-begin";
 const char stringTouchGetPoint[] PROGMEM = "touch-get-point";
@@ -525,6 +544,7 @@ const char stringRFM69GetRSSI[] PROGMEM = "rfm69-get-rssi";
 
 
 // Documentation strings
+#if defined NEOPIXEL_NUM
 const char docPixelsBegin[] PROGMEM = "(pixels-begin)\n"
 "Configures the NeoPixel pin for output.";
 const char docPixelsClear[] PROGMEM = "(pixels-clear)\n"
@@ -552,8 +572,9 @@ const char docPixelsRainbow[] PROGMEM = "(pixels-rainbow [first-hue] [cycles] [s
 "saturation, default 255, is the saturation (0 to 255).\n"
 "brightness, default 255, is the brightness (0 to 255).\n"
 "gammify, default true, applies gamma correction to colours.";
+#endif
 
-#if (defined(ADAFRUIT_FEATHER_M0) || defined(ARDUINO_FEATHER_M4)) && defined(kbfw)
+#if defined(kbfw)
 const char docForceTFT[] PROGMEM = "(force-tft)\n"
 "Call to regain TFT control and responsiveness after SPI use with other modules.";
 const char docTouchBegin[] PROGMEM = "(touch-begin)\n"
@@ -584,6 +605,7 @@ const char docRFM69GetRSSI[] PROGMEM = "(rfm69-get-rssi)\n"
 
 // Symbol lookup table
 const tbl_entry_t lookup_table2[] PROGMEM = {
+#if defined NEOPIXEL_NUM
   { stringPixelsBegin, fn_PixelsBegin, 0200, docPixelsBegin },
   { stringPixelsClear, fn_PixelsClear, 0200, docPixelsClear },
   { stringPixelsFill, fn_PixelsFill, 0203, docPixelsFill },
@@ -592,8 +614,9 @@ const tbl_entry_t lookup_table2[] PROGMEM = {
   { stringPixelsColorHSV, fn_PixelsColorHSV, 0233, docPixelsColorHSV },
   { stringPixelsShow, fn_PixelsShow, 0200, docPixelsShow },
   { stringPixelsRainbow, fn_PixelsRainbow, 0205, docPixelsRainbow },
+#endif
 
-#if (defined(ADAFRUIT_FEATHER_M0) || defined(ARDUINO_FEATHER_M4)) && defined(kbfw)
+#if defined(kbfw)
   { stringForceTFT, fn_ForceTFT, 0200, docForceTFT },
   { stringTouchBegin, fn_TouchBegin, 0200, docTouchBegin },
   { stringTouchGetPoint, fn_TouchGetPoint, 0200, docTouchGetPoint },
