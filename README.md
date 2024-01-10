@@ -23,7 +23,7 @@ Notes for RFM69:
 * Maximum payload length 65 characters in a packet.
 * To use a separate RFM69 module with other MCUs than the Feather M0 Radio (M4, for example) edit the constants for the module communication pins. This should work but is currently untested.
 * Source code contains possibility to use RadioHead library instead of LowPowerLab library BUT this is currently not working, presumably because of internal issues within RadioHead library or incompatibilities with the Feather ecosystem, see here: 
-[Adafruit forums] (https://forums.adafruit.com/viewtopic.php?p=973656#p973656)  
+[Adafruit forums](https://forums.adafruit.com/viewtopic.php?p=973656#p973656)  
 (Phenomenon is the same as described there, so it's not (only) an RP2040 issue.)
 
 Special keys now functional: 
