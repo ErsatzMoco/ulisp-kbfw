@@ -20,11 +20,12 @@ Both NeoPixel, touch screen and RFM69 support are part of the single extension f
 Notes for RFM69:
 * Sender and receiver must share the same net id (integer number).
 * To address the correct receiver, the sender needs to specify the receiver's node id (integer number) when transmitting.
-* The payload length currently is restricted to 44 characters. Technically RFM69 allows for 66 characters in a packet. To change the maximum according to your needs edit the line "cstring(first(args), packet, 45);" in function fn_RFM69Send in the extensions file. (specified length = real length + 1)
+* Maximum payload length 65 characters in a packet.
 * To use a separate RFM69 module with other MCUs than the Feather M0 Radio (M4, for example) edit the constants for the module communication pins. This should work but is currently untested.
+* Source code contains possibility to use RadioHead library instead of LowPowerLab library BUT this is currently not working, presumably because of internal issues within RadioHead library or incompatibilities with the Feather ecosystem, see here: [Adafruit forums] (https://forums.adafruit.com/viewtopic.php?p=973656#p973656)  (Phenomenon is the same as described there, so it's not (only) an RP2040 issue.)
 
 Special keys now functional: 
-* Outer left: Toggle keyboard backlight
+* Outer left: History mechanism - call up last line entered into the *local* KBFW-REPL (i.e. not via serial connection)
 * Inner left: <
 * Inner right: >
 * Outer right: Clear screen
