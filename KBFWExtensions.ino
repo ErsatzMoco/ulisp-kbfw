@@ -6,9 +6,16 @@
   See http://www.ulisp.com/show?4GMV
 */
 
+// #define radiohead // Outcomment this to switch to LowPowerLab RFM69 library
+                     // CURRENTLY MANDATORY BECAUSE OF UNSOLVED ISSUES WITHIN RADIOHEAD LIBRARY --- USE LOWPOWERLAB LIBRARY FOR NOW.
+
 #include <Adafruit_NeoPixel.h>
 #include <Adafruit_STMPE610.h>
-#include <RFM69.h>
+#if defined radiohead
+  #include <RH_RF69.h>
+#else
+  #include <RFM69.h>
+#endif
 
 #if defined(ARDUINO_PYBADGE_M4) || defined(ARDUINO_PYGAMER_M4)
   #define NEOPIXEL_NUM 5
@@ -41,7 +48,11 @@
 #endif
 
 #if defined(rfm69)
-  #define FREQUENCY RF69_868MHZ
+  #if defined radiohead
+    #define FREQUENCY 868.0
+  #else
+    #define FREQUENCY RF69_868MHZ
+  #endif
   #define ENCRYPTKEY "My@@@Encrypt@@@@" //exactly the same 16 characters/bytes on all nodes!
   #define IS_RFM69HCW true // set to 'true' only if you are using an RFM69HCW module like on Feather M0 Radio
 
@@ -59,7 +70,7 @@
 #endif
 
 #if defined NEOPIXEL_NUM
-Adafruit_NeoPixel pixels(NEOPIXEL_NUM, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
+  Adafruit_NeoPixel pixels(NEOPIXEL_NUM, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 #endif
 
 #if defined(kbfw)
@@ -67,7 +78,16 @@ Adafruit_NeoPixel pixels(NEOPIXEL_NUM, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 #endif
 
 #if defined(rfm69)
-  RFM69 radio(RFM69_CS, RFM69_IRQ, IS_RFM69HCW, RFM69_IRQN);
+
+    #define PACKETLENGTH 65
+    uint8_t pctlen = PACKETLENGTH+1;          //store pctlen globally for access via RadioHead library -- gets changed according to received byte packets
+    char *packet = (char*)malloc(PACKETLENGTH+1);    //reserve global buffer memory for send and receive once -- PACKETLENGTH char bytes plus \0
+
+  #if defined radiohead
+    RH_RF69 radio(RFM69_CS, RFM69_IRQ);
+  #else
+    RFM69 radio(RFM69_CS, RFM69_IRQ, IS_RFM69HCW, RFM69_IRQN);
+  #endif  
 #endif
 
 #if defined NEOPIXEL_NUM
@@ -398,9 +418,13 @@ void radioOFF () {
 */
 object *fn_RFM69Begin (object *args, object *env) {
   (void) env;
-  
-  int nodeid = checkinteger(first(args));
-  int netid = checkinteger(second(args));
+ 
+  #if defined radiohead
+    (void) args, (void) env;  //Radiohead library by default without sender/receiver and without network ID
+  #else  
+    int nodeid = checkinteger(first(args));
+    int netid = checkinteger(second(args));
+  #endif
 
   // Hard Reset the RFM module
   pinMode(RFM69_RST, OUTPUT);
@@ -415,19 +439,41 @@ object *fn_RFM69Begin (object *args, object *env) {
   String msg;
   pfun_t pf = pserial;
 
-  while(!radio.initialize(FREQUENCY, nodeid, netid))
+  #if defined radiohead
+    bool result = radio.init();
+    if (!result)
+    {
+        pfstring("RH_RFM69 - Module init failed!", pf);
+        return nil;
+    }
+    else
+    {
+        radio.setFrequency(FREQUENCY);
+    }
+  #else
+    while(!radio.initialize(FREQUENCY, nodeid, netid))
+    {
+        pfstring("try to init...", pf);
+        delay(100);
+    }
+  #endif
+
+  if (IS_RFM69HCW) // Only for RFM69HCW & HW!
   {
-      pfstring("try to init...", pf);
-      delay(100);
+      #if defined radiohead
+        radio.setTxPower(13, true);
+      #else
+        radio.setHighPower(); 
+      #endif
   }
 
-  if (IS_RFM69HCW)
-  {
-      radio.setHighPower(); // Only for RFM69HCW & HW!
-  }
-
-  radio.setPowerLevel(31); // power output ranges from 0 (5dBm) to 31 (20dBm)
-  radio.encrypt(ENCRYPTKEY);
+  #if !defined radiohead
+    radio.setPowerLevel(31); // power output ranges from 0 (5dBm) to 31 (20dBm)
+    radio.encrypt(ENCRYPTKEY);
+  #else
+    radio.setEncryptionKey((uint8_t*)ENCRYPTKEY);
+  #endif
+  
   
   radioOFF();
   
@@ -440,10 +486,12 @@ object *fn_RFM69Begin (object *args, object *env) {
       pfstring("RFM69 initialized!\n", pf);
   }
   pint(FREQUENCY, pf);
-  pserial(' ');
-  pint(nodeid, pf);
-  pserial(' ');
-  pint(netid, pf);
+  #if !defined radiohead
+    pserial(' ');
+    pint(nodeid, pf);
+    pserial(' ');
+    pint(netid, pf);
+  #endif
   pserial('\n');
 
   return nil;
@@ -459,20 +507,34 @@ object *fn_RFM69Send (object *args, object *env) {
   
   if (args != NULL) {
 
-    char* packet = new char[46];
     int receiver;
     bool ack = false;
 
-    receiver = checkinteger(first(args));
-    args = cdr(args);
-    cstring(first(args), packet, 45);
-    args = cdr(args);
-    if (args != NULL) {
-      ack = (first(args) == nil) ? false : true;
-      }
+    #if !defined radiohead
+      receiver = checkinteger(first(args));
+      args = cdr(args);
+    #endif
+    cstring(first(args), packet, PACKETLENGTH+1);   //build c-string from uLisp string, therefore includes additional '\0'
 
+    #if !defined radiohead
+      args = cdr(args);
+      if (args != NULL) {
+        ack = (first(args) == nil) ? false : true;
+        }
+    #endif
+      
     radioON();
-    radio.send(receiver, packet, strlen(packet)+1, ack);
+    #if defined radiohead
+      bool result = radio.send((uint8_t*)packet, strlen(packet)+1);   //use *real* packet length for send, i.e. string may be shorter than PACKETLENGTH. '\0' sent too!
+      if (!result)
+      {
+        radioOFF();
+        pstring("RH_RFM69 send failed!", (pfun_t)pserial);
+        return nil;   
+      }
+    #else
+      radio.send(receiver, packet, strlen(packet)+1, ack);  //use *real* packet length for send, i.e. string may be shorter than PACKETLENGTH. '\0' sent too!
+    #endif
     radioOFF();
     pstring(packet, (pfun_t)pserial);
     return tee;    
@@ -489,11 +551,31 @@ object *fn_RFM69Receive (object *args, object *env) {
   (void) env; (void) args;
 
   radioON();
-  if (radio.receiveDone())
-  {
-        radioOFF();
-        return lispstring((char*)radio.DATA);
-  }
+
+  #if defined radiohead
+    if (radio.available())
+    {      
+          bool result = radio.recv((uint8_t*)packet, &pctlen);   // RadioHead lib stores length of received packet in predefined global variable
+          radioOFF();
+          if (result)
+          {
+            packet[pctlen] = 0;  // add null terminating string for conversion into uLisp string
+            return lispstring(packet);
+          }
+          else
+          {
+            pstring("RH_RFM69 receive failed!", (pfun_t)pserial);
+            return nil;
+          }
+          
+    }
+  #else
+    if (radio.receiveDone())
+    {
+          radioOFF();
+          return lispstring((char*)radio.DATA);
+    }
+  #endif
   radioOFF();
   return nil;
 }
@@ -505,7 +587,11 @@ object *fn_RFM69Receive (object *args, object *env) {
 object *fn_RFM69GetRSSI (object *args, object *env) {
   (void) env; (void) args;
 
-  object* rssi = number(radio.RSSI);
+  #if defined radiohead
+    object* rssi = number(radio.rssiRead());
+  #else
+    object* rssi = number(radio.RSSI);
+  #endif
 
   radioOFF();
   return rssi;
@@ -627,8 +713,13 @@ const tbl_entry_t lookup_table2[] PROGMEM = {
 #endif
 
 #if defined(rfm69)
-  { stringRFM69Begin, fn_RFM69Begin, 0222, docRFM69Begin },
-  { stringRFM69Send, fn_RFM69Send, 0223, docRFM69Send },
+  #if defined radiohead
+    { stringRFM69Begin, fn_RFM69Begin, 0200, docRFM69Begin },
+    { stringRFM69Send, fn_RFM69Send, 0211, docRFM69Send },
+  #else
+    { stringRFM69Begin, fn_RFM69Begin, 0222, docRFM69Begin },
+    { stringRFM69Send, fn_RFM69Send, 0223, docRFM69Send },
+  #endif
   { stringRFM69Receive, fn_RFM69Receive, 0200, docRFM69Receive },
   { stringRFM69GetRSSI, fn_RFM69GetRSSI, 0200, docRFM69GetRSSI },
 #endif

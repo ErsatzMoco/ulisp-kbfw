@@ -7224,7 +7224,7 @@ const int LastColumn = Columns-1;
 const int LastLine = Lines-1;
 const char Cursor = 0x5f;
 
-volatile int WritePtr = 0, ReadPtr = 0;
+volatile int WritePtr = 0, ReadPtr = 0, LastWritePtr = 0;
 const int KybdBufSize = Columns*Lines;
 char KybdBuf[KybdBufSize], ScrollBuf[Columns][Lines];
 volatile uint8_t KybdAvailable = 0;
@@ -7255,7 +7255,8 @@ int gserial () {
             if (temp == '$') temp = '=';
             if (temp == '_') temp = '\\';
             if (temp == 18) temp = 12;    // translate outer right special key to clear screen
-            if (temp == 6) toggleBacklight();
+            if (temp == 6) temp = 9;      // translate outer left spcial key to TAB/call history
+//            if (temp == 6) toggleBacklight();
             if (temp == 17) temp = '<';   // translate inner special keys to angle brackets
             if (temp == 7) temp = '>';
             if (temp == 3) temp = '(';    // translate joystick left/right to round brackets for convenience
@@ -7288,7 +7289,8 @@ int gserial () {
           if (temp == '$') temp = '=';
           if (temp == '_') temp = '\\';
           if (temp == 18) temp = 12;    // translate outer right special key to clear screen
-          if (temp == 6) toggleBacklight();
+          if (temp == 6) temp = 9;      // translate outer left spcial key to TAB/call history
+//            if (temp == 6) toggleBacklight();
           if (temp == 17) temp = '<';   // translate inner special keys to angle brackets
           if (temp == 7) temp = '>';
           if (temp == 3) temp = '(';    // translate joystick left/right to round brackets for convenience
@@ -7602,7 +7604,7 @@ void ProcessKey (char c) {
   if (c == '\n' || c == '\r') {
     pserial('\n');
     KybdAvailable = 1;
-    ReadPtr = 0;
+    ReadPtr = 0; LastWritePtr = WritePtr;
     return;
   }
   if (c == 8 || c == 0x7f) {     // Backspace key
@@ -7611,7 +7613,12 @@ void ProcessKey (char c) {
       Display(0x7F);
       if (WritePtr) c = KybdBuf[WritePtr-1];
     }
-  } else if (WritePtr < KybdBufSize) {
+  } 
+  else if (c == 9) { // tab or ctrl-I
+    for (int i = 0; i < LastWritePtr; i++) Display(KybdBuf[i]);
+    WritePtr = LastWritePtr;
+  }
+  else if (WritePtr < KybdBufSize) {
     if ((c != 12) && (c != 6)) KybdBuf[WritePtr++] = c; // get rid of control characters Clear Screen, Backlight
     Display(c);
   }
