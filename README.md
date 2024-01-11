@@ -47,6 +47,6 @@ Keyboard translations:
 
 (@ not translated)
 
-Requires installation of Adafruit ILI9341 library in Arduino environment to compile, in addition the BBQ10 keyboard library by solder.party, the Adafruit NeoPixel library and the Adafruit STMPE610 library. To use the RFM69 module on the Feather M0 Radio you also need to install the RFM69 library by LowPowerLab.
+Requires installation of Adafruit ILI9341 library in Arduino environment to compile, in addition the BBQ10 keyboard library by solder.party, the Adafruit NeoPixel library and the Adafruit STMPE610 library. To use the RFM69 module on the Feather M0 Radio you also need to install the RFM69 library by LowPowerLab. For servo support the Arduino standard Servo library needs to be installed.
 
 For more information see [LilyGO T-Deck uLisp Machine](http://www.ulisp.com/show?4JAO).
