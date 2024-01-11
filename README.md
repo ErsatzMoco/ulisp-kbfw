@@ -3,6 +3,8 @@ A version of uLisp to convert Feather ARM boards with the KeyboardFeatherWing in
 It's based on uLisp T-Deck with some minor modifications: This version relies on the BBQ10 keyboard version by solder.party
 and the ILI9341 display driver as well as the Adafruit NeoPixel library, the Adafruit STMPE610 library and the RFM69 library by LowPowerLab.
 
+For servo support the Arduino standard Servo library is required. To activate this extension uncomment #define servolib in ulisp-kbfw.ino.
+
 Currently tested with Adafruit Feather M0 (Radio), Feather M4 Express and Feather RP2040.
 
 SD supported and tested on Feather M0 and Feather M4.
@@ -16,7 +18,9 @@ Touch screen supported and tested on Feather M0 and Feather M4. It does not work
 
 RFM69 support tested on Adafruit Feather M0 Radio.
 
-Both NeoPixel, touch screen and RFM69 support are part of the single extension file based on the uLisp NeoPixel Extension mentioned above. For uLisp functions made available this way please see the extension file itself and the documentation of the drivers wrapped within them.
+Servo support tested on Adafruit Feather M4 Express.
+
+Both NeoPixel, touch screen, RFM69 and servo support are part of the single extension file based on the uLisp NeoPixel Extension mentioned above. For uLisp functions made available this way please see the extension file itself and the documentation of the drivers wrapped within them.
 Notes for RFM69:
 * Sender and receiver must share the same net id (integer number).
 * To address the correct receiver, the sender needs to specify the receiver's node id (integer number) when transmitting.
@@ -25,6 +29,10 @@ Notes for RFM69:
 * Source code contains possibility to use RadioHead library instead of LowPowerLab library BUT this is currently not working, presumably because of internal issues within RadioHead library or incompatibilities with the Feather ecosystem, see here: 
 [Adafruit forums](https://forums.adafruit.com/viewtopic.php?p=973656#p973656)  
 (Phenomenon is the same as described there, so it's not (only) an RP2040 issue.)
+
+Notes for servo extension:
+* The extension manages an arbitrary number of servos. How many you can use depends on your board, you're responsible to keep that in mind.
+* To manage the servos each one must have a unique integer ID number. You may freely choose and assign this number to a servo within "servo-attach". All other servo functions require this number to identify the servo you want to manipulate. 
 
 Special keys now functional: 
 * Outer left: History mechanism - call up last line entered into the *local* KBFW-REPL (i.e. not via serial connection)

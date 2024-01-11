@@ -10,11 +10,16 @@
                      // CURRENTLY MANDATORY BECAUSE OF UNSOLVED ISSUES WITHIN RADIOHEAD LIBRARY --- USE LOWPOWERLAB LIBRARY FOR NOW.
 
 #include <Adafruit_NeoPixel.h>
-#include <Adafruit_STMPE610.h>
+#if defined kbfw
+  #include <Adafruit_STMPE610.h>
+#endif
 #if defined radiohead
   #include <RH_RF69.h>
 #else
   #include <RFM69.h>
+#endif
+#if defined servolib
+  #include <Servo.h>
 #endif
 
 #if defined(ARDUINO_PYBADGE_M4) || defined(ARDUINO_PYGAMER_M4)
@@ -88,6 +93,18 @@
   #else
     RFM69 radio(RFM69_CS, RFM69_IRQ, IS_RFM69HCW, RFM69_IRQN);
   #endif  
+#endif
+
+#if defined servolib
+    struct ulservo {
+      int snum;
+      int pin;
+      struct ulservo* nextservo;
+      Servo servo;
+    };
+
+    struct ulservo* servolist = NULL;
+    struct ulservo* curservo = NULL;
 #endif
 
 #if defined NEOPIXEL_NUM
@@ -436,7 +453,6 @@ object *fn_RFM69Begin (object *args, object *env) {
   digitalWrite(RFM69_RST, LOW);
   delay(100);
 
-  String msg;
   pfun_t pf = pserial;
 
   #if defined radiohead
@@ -599,6 +615,192 @@ object *fn_RFM69GetRSSI (object *args, object *env) {
 #endif
 
 
+#if defined(servolib)
+/*
+  (servo-attach)
+  Attach servo snum to pin. Optionally define new pulse width min/max in microseconds.
+*/
+object *fn_ServoAttach (object *args, object *env) {
+  (void) env;
+ 
+  int snum = checkinteger(first(args));   // zero based index!;
+  int pin = checkinteger(second(args));
+  int usmin = 544;
+  int usmax = 2400;
+
+  args = cdr(args);
+  args = cdr(args);
+  if (args != NULL) {
+    usmin = checkinteger(first(args));
+    args = cdr(args);
+    if (args != NULL) {
+      usmax = checkinteger(first(args));
+    }
+  }
+
+  if(servolist == NULL) {
+    if((servolist = (struct ulservo*)malloc(sizeof(struct ulservo))) == NULL) {
+       pfstring("Out of memory", (pfun_t)pserial);
+       return nil;
+    }
+
+    servolist->snum = snum;
+    servolist->pin = pin;
+    servolist->nextservo = NULL;
+    servolist->servo = Servo();
+    servolist->servo.attach(pin, usmin, usmax);
+  }
+  else {
+    curservo = servolist;
+    while(curservo->nextservo != NULL) {
+      if ((curservo->snum == snum) || (curservo->pin == pin)) {
+        pfstring("Servo number or pin already in use!", (pfun_t)pserial);
+        return nil;
+      }
+      curservo = curservo->nextservo;
+    }
+
+    if ((curservo->snum == snum) || (curservo->pin == pin)) {
+      pfstring("Servo number or pin already in use!", (pfun_t)pserial);
+      return nil;
+    }
+
+    if((curservo->nextservo = (struct ulservo*)malloc(sizeof(struct ulservo))) == NULL) {
+        pfstring("Out of memory", (pfun_t)pserial);
+        return nil;
+    }
+
+    curservo = curservo->nextservo;
+
+    curservo->snum = snum;
+    curservo->pin = pin;
+    curservo->servo = Servo();
+    curservo->servo.attach(pin, usmin, usmax);
+    curservo->nextservo = NULL;
+  }
+  return tee;
+}
+
+/*
+  (servo-write)
+  Set angle of servo snum in degrees (0 to 180).
+*/
+object *fn_ServoWrite (object *args, object *env) {
+  (void) env;
+ 
+  int snum = checkinteger(first(args));
+  int angle = checkinteger(second(args));
+  curservo = servolist;
+
+  if (curservo != NULL) {
+
+    while(curservo->snum != snum) {
+      curservo = curservo->nextservo;
+      if (curservo == NULL) break;
+    }
+
+    if(curservo != NULL) {
+      curservo->servo.write(angle);
+      return number(angle);
+    }
+  }
+
+  pfstring("Servo not found", (pfun_t)pserial);
+  return nil;
+}
+
+/*
+  (servo-write-microseconds)
+  Set angle of servo snum using a pulse width value in microseconds.
+*/
+object *fn_ServoWriteMicroseconds (object *args, object *env) {
+  (void) env;
+ 
+  int snum = checkinteger(first(args));
+  int us = checkinteger(second(args));
+  curservo = servolist;
+
+  if (curservo != NULL) {
+
+    while(curservo->snum != snum) {
+      curservo = curservo->nextservo;
+      if (curservo == NULL) break;
+    }
+
+    if(curservo != NULL) {
+      curservo->servo.writeMicroseconds(us);
+      return number(us);
+    }
+  }
+
+  pfstring("Servo not found", (pfun_t)pserial);
+  return nil;
+}
+
+/*
+  (servo-read)
+  Read current angle of servo snum in degrees.
+*/
+object *fn_ServoRead (object *args, object *env) {
+  (void) env;
+
+  int snum = checkinteger(first(args));
+  curservo = servolist;
+
+  if (curservo != NULL) {
+
+    while(curservo->snum != snum) {
+      curservo = curservo->nextservo;
+      if (curservo == NULL) break;
+    }
+
+    if(curservo != NULL) {
+      return number(curservo->servo.read());
+    }
+  }
+
+  pfstring("Servo not found", (pfun_t)pserial);
+  return nil;
+}
+
+/*
+  (servo-detach)
+  Detach servo snum, thus freeing the assigned pin for other tasks.
+*/
+object *fn_ServoDetach (object *args, object *env) {
+  (void) env;
+
+  int snum = checkinteger(first(args));
+  curservo = servolist;
+  struct ulservo* lastservo = servolist;
+
+  if (curservo != NULL) {
+
+    while(curservo->snum != snum) {
+      lastservo = curservo;
+      curservo = curservo->nextservo;
+      if (curservo == NULL) break;
+    }
+
+    if(curservo != NULL) {
+      curservo->servo.detach();
+      if (curservo == servolist) {    // delete first element of list
+        servolist = curservo->nextservo;
+      }
+      else {
+        lastservo->nextservo = curservo->nextservo;
+      }
+      free(curservo);
+      return tee;
+    }
+  }
+
+  pfstring("Servo not found", (pfun_t)pserial);
+  return nil;
+}
+#endif
+
+
 // Symbol names
 #if defined NEOPIXEL_NUM
 const char stringPixelsBegin[] PROGMEM = "pixels-begin";
@@ -626,6 +828,14 @@ const char stringRFM69Begin[] PROGMEM = "rfm69-begin";
 const char stringRFM69Send[] PROGMEM = "rfm69-send";
 const char stringRFM69Receive[] PROGMEM = "rfm69-receive";
 const char stringRFM69GetRSSI[] PROGMEM = "rfm69-get-rssi";
+#endif
+
+#if defined(servolib)
+const char stringServoAttach[] PROGMEM = "servo-attach";
+const char stringServoWrite[] PROGMEM = "servo-write";
+const char stringServoWriteMicroseconds[] PROGMEM = "servo-write-microseconds";
+const char stringServoRead[] PROGMEM = "servo-read";
+const char stringServoDetach[] PROGMEM = "servo-detach";
 #endif
 
 
@@ -689,6 +899,19 @@ const char docRFM69GetRSSI[] PROGMEM = "(rfm69-get-rssi)\n"
 "Obtain signal strength reported at last transmit.";
 #endif
 
+#if defined(servolib)
+const char docServoAttach[] PROGMEM = "(servo-attach snum pin usmin usmax)\n"
+"Attach servo snum to pin. Optionally define new pulse width min/max in microseconds.";
+const char docServoWrite[] PROGMEM = "(servo-write snum angle)\n"
+"Set angle of servo snum in degrees (0 to 180).";
+const char docServoWriteMicroseconds[] PROGMEM = "(servo-write snum usecs)\n"
+"Set angle of servo snum using a pulse width value in microseconds.";
+const char docServoRead[] PROGMEM = "(servo-read snum)\n"
+"Read current angle of servo snum in degrees.";
+const char docServoDetach[] PROGMEM = "(servo-detach snum)\n"
+"Detach servo snum, thus freeing the assigned pin for other tasks.";
+#endif
+
 // Symbol lookup table
 const tbl_entry_t lookup_table2[] PROGMEM = {
 #if defined NEOPIXEL_NUM
@@ -723,6 +946,14 @@ const tbl_entry_t lookup_table2[] PROGMEM = {
   { stringRFM69Receive, fn_RFM69Receive, 0200, docRFM69Receive },
   { stringRFM69GetRSSI, fn_RFM69GetRSSI, 0200, docRFM69GetRSSI },
 #endif
+
+#if defined(servolib)
+  { stringServoAttach, fn_ServoAttach, 0224, docServoAttach },
+  { stringServoWrite, fn_ServoWrite, 0222, docServoWrite },
+  { stringServoWriteMicroseconds, fn_ServoWriteMicroseconds, 0222, docServoWriteMicroseconds },
+  { stringServoRead, fn_ServoRead, 0211, docServoRead },
+  { stringServoDetach, fn_ServoDetach, 0211, docServoDetach },
+#endif  
 };
 
 // Table cross-reference functions - do not edit below this line

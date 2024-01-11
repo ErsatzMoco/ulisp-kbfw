@@ -18,12 +18,13 @@ const char LispLibrary[] PROGMEM = "";
 #define gfxsupport  //uncomment this line for KeyboardFeatherWing operation
 // #define lisplibrary
 #define assemblerlist
-// #define lineeditor
+#define lineeditor
 // #define vt100
 #define extensions
 #define kbfw  //uncomment this line for KeyboardFeatherWing operation
 #define rfm69 //uncomment this line for FEATHER M0 RADIO with RFM69 module
 #define autoforcetft  //uncomment this line for INTERNAL REPL USE
+// #define servolib  //uncomment this line to include Arduino "Servo" library into extension
 
 // Includes
 
