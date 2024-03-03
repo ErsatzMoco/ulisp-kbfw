@@ -7772,7 +7772,7 @@ void ulispreset () {
   SDpfile.close(); SDgfile.close();
   #endif
   #if defined(lisplibrary)
-  if (!tstflag(LIBRARYLOADED)) { setflag(LIBRARYLOADED); loadfromlibrary(NULL); }
+  if (!tstflag(LIBRARYLOADED)) { setflag(LIBRARYLOADED); loadfromlibrary(NULL); clrflag(NOECHO); }
   #endif
   //client.stop();
 }
