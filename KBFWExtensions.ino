@@ -1,5 +1,5 @@
 /*
-  Keyboard FeatherWing uLisp Extension - Version 0.2 - 1st Jan 2024
+  Keyboard FeatherWing uLisp Extension - Version 0.3 - 14th March 2024
 
   Based on:
   NeoPixel uLisp Extension - Version 1a - 22nd May 2023
@@ -37,8 +37,8 @@
   #define PIN_NEOPIXEL 8
 #endif
 
-//  #define NEOPIXEL_NUM 1      //uncomment these two lines when using external NeoPixels - fill in appropriate values
-//  #define PIN_NEOPIXEL 11
+// #define NEOPIXEL_NUM 1      //uncomment these two lines when using external NeoPixels - fill in appropriate values
+// #define PIN_NEOPIXEL 11
 
 
 #if defined(kbfw)
@@ -56,23 +56,32 @@
   #if defined radiohead
     #define FREQUENCY 868.0
   #else
-    #define FREQUENCY RF69_868MHZ
+    // #define FREQUENCY RF69_868MHZ
+    #define FREQUENCY RF69_433MHZ
   #endif
   #define ENCRYPTKEY "My@@@Encrypt@@@@" //exactly the same 16 characters/bytes on all nodes!
   #define IS_RFM69HCW true // set to 'true' only if you are using an RFM69HCW module like on Feather M0 Radio
 
   // for Feather M0 Radio
-  #define RFM69_CS 8
-  #define RFM69_IRQ 3
-  #define RFM69_IRQN 3 // Pin 3 is IRQ 3!
-  #define RFM69_RST 4
-
+  #if defined(ADAFRUIT_FEATHER_M0)
+    #define RFM69_CS 8
+    #define RFM69_IRQ 3
+    #define RFM69_IRQN 3 // Pin 3 is IRQ 3!
+    #define RFM69_RST 4
   // for Feather M4 etc with external RFM69 module
-  // #define RFM69_CS 5
-  // #define RFM69_IRQ 9
-  // #define RFM69_IRQN 3 // Pin 9 is IRQ 3!
-  // #define RFM69_RST 6
+  #elif defined(ARDUINO_FEATHER_M4)
+    #define RFM69_CS A2
+    #define RFM69_IRQ A1
+    #define RFM69_IRQN 5 // Pin A1 is IRQ 5!
+    #define RFM69_RST A0
+  // for Pimoroni Tiny 2040 with external RFM69 module
+  #elif defined(ARDUINO_PIMORONI_TINY2040)
+    #define RFM69_CS 1
+    #define RFM69_IRQ A1 // RP2040 IRQ number defined in library call!
+    #define RFM69_RST A0
+  #endif
 #endif
+
 
 #if defined NEOPIXEL_NUM
   Adafruit_NeoPixel pixels(NEOPIXEL_NUM, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
@@ -91,7 +100,12 @@
   #if defined radiohead
     RH_RF69 radio(RFM69_CS, RFM69_IRQ);
   #else
-    RFM69 radio(RFM69_CS, RFM69_IRQ, IS_RFM69HCW, RFM69_IRQN);
+    #if defined(ARDUINO_PIMORONI_TINY2040)
+      int irqn digitalPinToInterrupt(RFM69_IRQ);
+      RFM69 radio(RFM69_CS, RFM69_IRQ, IS_RFM69HCW, irqn);
+    #else
+      RFM69 radio(RFM69_CS, RFM69_IRQ, IS_RFM69HCW, RFM69_IRQN);
+    #endif
   #endif  
 #endif
 
@@ -297,11 +311,11 @@ object *fn_TouchGetPoint (object *args, object *env) {
 
   prepareTouch();
   TS_Point p = touch.getPoint();
-  p.x = map(p.x, TS_MINY, TS_MAXY, tft.height(), 0);
-  p.y = map(p.y, TS_MINX, TS_MAXX, 0, tft.width());
+  int myx = map(p.y, TS_MINX, TS_MAXX, 0, tft.width());
+  int myy = map(p.x, TS_MINY, TS_MAXY, tft.height(), 0);
 
-  object *px = number(p.x);
-  object *py = number(p.y);
+  object *px = number(myx);
+  object *py = number(myy);
 
   #if defined autoforcetft
     forceTFT();
@@ -324,11 +338,11 @@ object *fn_TouchWaitForTouch (object *args, object *env) {
     ;
   }
   TS_Point p = touch.getPoint();
-  p.x = map(p.x, TS_MINY, TS_MAXY, tft.height(), 0);
-  p.y = map(p.y, TS_MINX, TS_MAXX, 0, tft.width());
+  int myx = map(p.y, TS_MINX, TS_MAXX, 0, tft.width());
+  int myy = map(p.x, TS_MINY, TS_MAXY, tft.height(), 0);
 
-  object *px = number(p.x);
-  object *py = number(p.y);
+  object *px = number(myx);
+  object *py = number(myy);
 
   #if defined autoforcetft
     forceTFT();
@@ -398,6 +412,42 @@ object *fn_TouchBufferSize (object *args, object *env) {
 
   return number(bsize);
 }
+
+
+/*
+  (keyboard-get-key)
+  Check for key and return keycode if BBQ10 key was recognized with requested state (up, down, pressed).
+  Keycodes for special keys: 
+  18  = outer right
+  6   = outer left
+  17  = inner left
+  7   = inner right
+  1   = joystick up
+  2   = joystick down
+  3   = joystick left
+  4   = joystick right
+  5   = joystick pressed
+*/
+object *fn_KeyboardGetKey (object *args, object *env) {
+  (void) env;
+  int reqstate = 3;
+  if (args != NULL) {
+    int mystate = checkinteger(first(args));
+    reqstate = constrain(mystate, 1, 3);
+  }
+
+  Wire.requestFrom(0x1F, 1);
+  if (Wire.available()) {
+    const BBQ10Keyboard::KeyEvent key_e = keyboard.keyEvent();
+    char temp = key_e.key;
+    if ((temp > 0) && (temp < 255)) {
+      if (key_e.state == reqstate) {
+        return number(temp);
+      }
+    }
+  }
+  return nil;
+}
 #endif
 
 
@@ -441,6 +491,9 @@ object *fn_RFM69Begin (object *args, object *env) {
   #else  
     int nodeid = checkinteger(first(args));
     int netid = checkinteger(second(args));
+  #endif
+  #if defined(rfm69) && defined(ARDUINO_PIMORONI_TINY2040)
+    pinMode(RFM69_IRQ, INPUT_PULLUP); 
   #endif
 
   // Hard Reset the RFM module
@@ -821,6 +874,7 @@ const char stringTouchWaitForTouch[] PROGMEM = "touch-wait-for-touch";
 const char stringTouchTouched[] PROGMEM = "touch-touched";
 const char stringTouchBufferEmpty[] PROGMEM = "touch-buffer-empty";
 const char stringTouchBufferSize[] PROGMEM = "touch-buffer-size";
+const char stringKeyboardGetKey[] PROGMEM = "keyboard-get-key";
 #endif
 
 #if defined(rfm69)
@@ -886,6 +940,8 @@ const char docTouchBufferEmpty[] PROGMEM = "(touch-buffer-empty)\n"
 "Check if touch screen buffer is empty.";
 const char docTouchBufferSize[] PROGMEM = "(touch-buffer-size)\n"
 "Returns the size of the touch screen's FIFO buffer.";
+const char docKeyboardGetKey[] PROGMEM = "(keyboard-get-key)\n"
+"Check for key and return keycode if BBQ10 key was recognized with requested state (up, down, pressed).";
 #endif
 
 #if defined(rfm69)
@@ -933,6 +989,7 @@ const tbl_entry_t lookup_table2[] PROGMEM = {
   { stringTouchTouched, fn_TouchTouched, 0200, docTouchTouched },
   { stringTouchBufferEmpty, fn_TouchBufferEmpty, 0200, docTouchBufferEmpty },
   { stringTouchBufferSize, fn_TouchBufferSize, 0200, docTouchBufferSize },
+  { stringKeyboardGetKey, fn_KeyboardGetKey, 0201, docKeyboardGetKey },
 #endif
 
 #if defined(rfm69)

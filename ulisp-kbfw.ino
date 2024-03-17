@@ -16,7 +16,8 @@ const char LispLibrary[] PROGMEM = "";
 // #define printgcs
 // #define sdcardsupport //leave this line in comments for KeyboardFeatherWing operation - support set automatically according to appropriate board
 #define gfxsupport  //uncomment this line for KeyboardFeatherWing operation
-// #define lisplibrary
+#define internalrepl //uncomment this line for for INTERNAL REPL USE
+#define lisplibrary
 #define assemblerlist
 #define lineeditor
 // #define vt100
@@ -94,7 +95,7 @@ const char LispLibrary[] PROGMEM = "";
   #define STACKDIFF 400
   #define CPU_ATSAMD51
   #if defined(rfm69)
-    #define PIN_RADIO_CS 5  // for Feather M4 with external RFM69 module only
+    #define PIN_RADIO_CS A2  // for Feather M4 with external RFM69 module only
   #endif 
   #if defined(kbfw)
     const int COLOR_WHITE = 0xffff, COLOR_BLACK = 0, COLOR_GREEN = 0x07e0;
@@ -244,7 +245,7 @@ const char LispLibrary[] PROGMEM = "";
   #undef MEMBANK
   #define MEMBANK DMAMEM
 
-#elif defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_SEEED_XIAO_RP2040)
+#elif defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_PIMORONI_TINY2040) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_SEEED_XIAO_RP2040)
   #define WORKSPACESIZE (22912-SDSIZE)    /* Objects (8*bytes) */
   #define LITTLEFS
   #include <LittleFS.h>
@@ -265,6 +266,15 @@ const char LispLibrary[] PROGMEM = "";
     #include <Adafruit_GFX.h>
     #include <Adafruit_ILI9341.h>
     Adafruit_ILI9341 tft = Adafruit_ILI9341(PIN_TFT_CS, PIN_TFT_DC, PIN_TFT_MOSI, PIN_TFT_SCLK);
+  #endif
+  #if defined(rfm69) && defined(ARDUINO_FEATHER_M4)
+    #define PIN_RADIO_CS 5  // for Feather M4 with external RFM69 module only
+  #elif defined(rfm69) && defined(ARDUINO_PIMORONI_TINY2040)
+    #define PIN_RADIO_CS 1  // for Pimoroni Tiny 2040 with external RFM69 module only
+    // bool setRX(0);
+    // bool setCS(1);
+    // bool setSCK(2);
+    // bool setTX(3);
   #endif
 
 #elif defined(ARDUINO_RASPBERRY_PI_PICO_W)
@@ -311,6 +321,8 @@ const char LispLibrary[] PROGMEM = "";
 #else
 #define SDSIZE 0
 #endif
+
+#define SERIAL_TIMEOUT 1
 
 // C Macros
 
@@ -2195,7 +2207,7 @@ void I2Cstop (TwoWire *port, uint8_t read) {
 #if defined(ARDUINO_NRF52840_CLUE) || defined(ARDUINO_GRAND_CENTRAL_M4) || defined(ARDUINO_PYBADGE_M4) || defined(ARDUINO_PYGAMER_M4) || defined(ARDUINO_TEENSY40) || defined(ARDUINO_TEENSY41) || defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W)
 #define ULISP_SPI1
 #endif
-#if defined(ARDUINO_WIO_TERMINAL) || defined(ARDUINO_BBC_MICROBIT_V2) || defined(ARDUINO_TEENSY40) || defined(ARDUINO_TEENSY41) || defined(MAX32620) || defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_GRAND_CENTRAL_M4) || defined(ARDUINO_NRF52840_CIRCUITPLAY)
+#if defined(ARDUINO_WIO_TERMINAL) || defined(ARDUINO_BBC_MICROBIT_V2) || defined(ARDUINO_TEENSY40) || defined(ARDUINO_TEENSY41) || defined(MAX32620) || defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_PIMORONI_TINY2040) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_GRAND_CENTRAL_M4) || defined(ARDUINO_NRF52840_CIRCUITPLAY)
 #define ULISP_I2C1
 #endif
 #if defined(ARDUINO_SAM_DUE) || defined(ARDUINO_TEENSY40) || defined(ARDUINO_TEENSY41) || defined(ARDUINO_GRAND_CENTRAL_M4)
@@ -2218,13 +2230,13 @@ inline int i2cread () { return I2Cread(&Wire); }
 inline int i2c1read () { return I2Cread(&Wire1); }
 #endif
 #if defined(ULISP_SERIAL3)
-inline int serial3read () { while (!Serial3.available()) testescape(); return Serial3.read(); }
+inline int serial3read () { unsigned long mymil = millis(); while (!Serial3.available() && (millis() < (mymil + SERIAL_TIMEOUT))) testescape(); return Serial3.read(); }
 #endif
 #if defined(ULISP_SERIAL3) || defined(ULISP_SERIAL2)
-inline int serial2read () { while (!Serial2.available()) testescape(); return Serial2.read(); }
+inline int serial2read () { unsigned long mymil = millis(); while (!Serial2.available() && (millis() < (mymil + SERIAL_TIMEOUT))) testescape(); return Serial2.read(); }
 #endif
 #if defined(ULISP_SERIAL3) || defined(ULISP_SERIAL2) || defined(ULISP_SERIAL1)
-inline int serial1read () { while (!Serial1.available()) testescape(); return Serial1.read(); }
+inline int serial1read () { unsigned long mymil = millis(); while (!Serial1.available() && (millis() < (mymil + SERIAL_TIMEOUT))) testescape(); return Serial1.read(); }
 #endif
 #if defined(sdcardsupport)
 File SDpfile, SDgfile;
@@ -2454,7 +2466,7 @@ void checkanalogread (int pin) {
   if (!((pin>=14 && pin<=27))) error(invalidpin, number(pin));
 #elif defined(ARDUINO_TEENSY41)
   if (!((pin>=14 && pin<=27) || (pin>=38 && pin<=41))) error(invalidpin, number(pin));
-#elif defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_SEEED_XIAO_RP2040)
+#elif defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_PIMORONI_TINY2040) || defined(ARDUINO_SEEED_XIAO_RP2040)
   if (!(pin>=26 && pin<=29)) error(invalidpin, number(pin));
 #elif defined(ARDUINO_MINIMA) || defined(ARDUINO_UNOWIFIR4)
   if (!((pin>=14 && pin<=21))) error(invalidpin, number(pin));
@@ -2508,7 +2520,7 @@ void checkanalogwrite (int pin) {
   if (!((pin>=0 && pin<=15) || (pin>=18 && pin<=19) || (pin>=22 && pin<=25) || (pin>=28 && pin<=29) || (pin>=33 && pin<=39))) error(invalidpin, number(pin));
 #elif defined(ARDUINO_TEENSY41)
   if (!((pin>=0 && pin<=15) || (pin>=18 && pin<=19) || (pin>=22 && pin<=25) || (pin>=28 && pin<=29) || pin==33 || (pin>=36 && pin<=37))) error(invalidpin, number(pin));
-#elif defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_SEEED_XIAO_RP2040)
+#elif defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_PIMORONI_TINY2040) || defined(ARDUINO_SEEED_XIAO_RP2040)
   if (!(pin>=0 && pin<=29)) error(invalidpin, number(pin));
 #elif defined(ARDUINO_RASPBERRY_PI_PICO_W)
   if (!((pin>=0 && pin<=29) || pin == 32)) error(invalidpin, number(pin));
@@ -2532,7 +2544,7 @@ void playnote (int pin, int note, int octave) {
 }
 
 void nonote (int pin) {
-#if defined(ARDUINO_NRF52840_CLUE) || defined(ARDUINO_NRF52840_CIRCUITPLAY) || defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_WIO_TERMINAL) || defined(ARDUINO_SEEED_XIAO_RP2040)
+#if defined(ARDUINO_NRF52840_CLUE) || defined(ARDUINO_NRF52840_CIRCUITPLAY) || defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_PIMORONI_TINY2040) || defined(ARDUINO_WIO_TERMINAL) || defined(ARDUINO_SEEED_XIAO_RP2040)
   noTone(pin);
 #else
   (void) pin;
@@ -4647,7 +4659,7 @@ object *fn_analogread (object *args, object *env) {
 object *fn_analogreference (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  #if defined(ARDUINO_TEENSY40) || defined(ARDUINO_TEENSY41) || defined(MAX32620) || defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040)
+  #if defined(ARDUINO_TEENSY40) || defined(ARDUINO_TEENSY41) || defined(MAX32620) || defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_PIMORONI_TINY2040)
   error2(PSTR("not supported"));
   #else
   analogReference((eAnalogReference)checkkeyword(arg));
@@ -4658,7 +4670,7 @@ object *fn_analogreference (object *args, object *env) {
 object *fn_analogreadresolution (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  #if defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040)
+  #if defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_PIMORONI_TINY2040)
   error2(PSTR("not supported"));
   #else
   analogReadResolution(checkinteger(arg));
@@ -6763,13 +6775,13 @@ void testescape () {
   //local escape using KBFW joystick press
   //replace with much faster version below if your device is equipped with an extra button
   //(connected directly to a digital input of your Feather board)
-#if defined kbfw  
+#if defined internalrepl 
   Wire.requestFrom(0x1F, 1);
       if (Wire.available()) {
         const BBQ10Keyboard::KeyEvent key_e = keyboard.keyEvent();
         char temp = key_e.key;
         if (key_e.state == 3) {
-          if (temp == 2) {
+          if ((temp == 5) || (temp == '~')){
             error2(PSTR("escape!"));
           }
         }
@@ -6971,6 +6983,7 @@ object *eval (object *form, object *env) {
 void pserial (char c) {
   LastPrint = c;
   if (!tstflag(NOECHO)) Display(c);         // Don't display on KBFW screen when paste in listing
+  //Display(c);
   #if defined (serialmonitor)
     if (c == '\n') Serial.write('\r');
     Serial.write(c);
@@ -7245,7 +7258,7 @@ int gserial () {
       if (temp != '\n' && !tstflag(NOECHO)) Serial.print(temp);
       return temp;
     } 
-    #if defined kbfw
+    #if defined internalrepl
     else {
       Wire.requestFrom(0x1F, 1);
       if (Wire.available()) {
@@ -7262,7 +7275,7 @@ int gserial () {
             if (temp == 7) temp = '>';
             if (temp == 3) temp = '(';    // translate joystick left/right to round brackets for convenience
             if (temp == 4) temp = ')';
-            if (temp == 1) temp = '[';    // translate joystick up/down to round brackets
+            if (temp == 1) temp = '[';    // translate joystick up/down to square brackets
             if (temp == 2) temp = ']';
             ProcessKey(temp);
          }
@@ -7278,7 +7291,7 @@ int gserial () {
   KybdAvailable = 0;
   WritePtr = 0;
   return '\n';
-  #elif defined kbfw
+  #elif defined internalrepl
   while (!KybdAvailable) {
     Wire.requestFrom(0x1F, 1);
     if (Wire.available()) {
@@ -7296,7 +7309,7 @@ int gserial () {
           if (temp == 7) temp = '>';
           if (temp == 3) temp = '(';    // translate joystick left/right to round brackets for convenience
           if (temp == 4) temp = ')';
-          if (temp == 1) temp = '[';    // translate joystick up/down to round brackets
+          if (temp == 1) temp = '[';    // translate joystick up/down to square brackets
           if (temp == 2) temp = ']';
           ProcessKey(temp);
         }
@@ -7519,7 +7532,7 @@ const char BEEP = 7;
 
 // Prints a character to display, with cursor, handling control characters
 void Display (char c) {
-  #if defined(gfxsupport)
+  #if defined(gfxsupport) && defined(internalrepl)
   static uint8_t line = 0, column = 0;
   static bool invert = false;
   // These characters don't affect the cursor
