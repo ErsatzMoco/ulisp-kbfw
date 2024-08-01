@@ -4433,7 +4433,7 @@ object *fn_stringgreater (object *args, object *env) {
 object *fn_stringnoteq (object *args, object *env) {
   (void) env;
   int m = stringcompare(args, true, true, false);
-  return m == -1 ? nil : tee;
+  return m == -1 ? nil : number(m);
 }
 
 object *fn_stringlesseq (object *args, object *env) {
